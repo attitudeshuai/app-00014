@@ -1,5 +1,8 @@
 package com.petfoster.service;
 
+import com.petfoster.annotation.CheckOwnership;
+import com.petfoster.annotation.OwnershipRole;
+import com.petfoster.annotation.ResourceType;
 import com.petfoster.common.BusinessException;
 import com.petfoster.common.PageResponse;
 import com.petfoster.dto.DailyLogDTO;
@@ -68,6 +71,14 @@ public class DailyLogService {
     }
 
     @Transactional
+    @CheckOwnership(
+            resourceType = ResourceType.FOSTER_REQUEST,
+            idIndex = 1,
+            idField = "requestId",
+            userIdIndex = 0,
+            role = OwnershipRole.FOSTERER,
+            errorMessage = "只有寄养人才能创建日报"
+    )
     public DailyLogDTO.LogResponse createLog(Long userId, DailyLogDTO.CreateLogRequest req, org.springframework.web.multipart.MultipartFile[] photoFiles) {
         FosterRequest request = requestRepository.findById(req.getRequestId())
                 .orElseThrow(() -> BusinessException.notFound("寄养申请不存在"));
@@ -75,12 +86,6 @@ public class DailyLogService {
         if (request.getStatus() != FosterRequest.Status.InProgress
                 && request.getStatus() != FosterRequest.Status.Approved) {
             throw BusinessException.badRequest("只有已批准或进行中的寄养申请才能创建日报");
-        }
-
-        boolean isFosterer = request.getFostererId() != null
-                && request.getFostererId().equals(userId);
-        if (!isFosterer) {
-            throw BusinessException.forbidden("只有寄养人才能创建日报");
         }
 
         if (req.getLogDate() == null) {
@@ -181,14 +186,17 @@ public class DailyLogService {
     }
 
     @Transactional
+    @CheckOwnership(
+            resourceType = ResourceType.DAILY_LOG,
+            idIndex = 1,
+            userIdIndex = 0,
+            role = OwnershipRole.FOSTERER,
+            errorMessage = "无权限修改此日报"
+    )
     public DailyLogDTO.LogResponse updateLog(Long userId, Long logId, DailyLogDTO.UpdateLogRequest req,
             org.springframework.web.multipart.MultipartFile[] photoFiles, boolean replacePhotos) {
         FosterDailyLog log = logRepository.findById(logId)
                 .orElseThrow(() -> BusinessException.notFound("寄养日报不存在"));
-
-        if (!log.getFostererId().equals(userId)) {
-            throw BusinessException.forbidden("无权限修改此日报");
-        }
 
         String oldPhotos = log.getPhotos();
         List<String> uploadedPhotoUrls = new ArrayList<>();
@@ -308,13 +316,16 @@ public class DailyLogService {
     }
 
     @Transactional
+    @CheckOwnership(
+            resourceType = ResourceType.DAILY_LOG,
+            idIndex = 1,
+            userIdIndex = 0,
+            role = OwnershipRole.FOSTERER,
+            errorMessage = "无权限删除此日报"
+    )
     public void deleteLog(Long userId, Long logId) {
         FosterDailyLog log = logRepository.findById(logId)
                 .orElseThrow(() -> BusinessException.notFound("寄养日报不存在"));
-
-        if (!log.getFostererId().equals(userId)) {
-            throw BusinessException.forbidden("无权限删除此日报");
-        }
 
         String photos = log.getPhotos();
 

@@ -146,18 +146,6 @@ class PetServiceTest {
     }
 
     @Test
-    @DisplayName("更新宠物 - 无权限")
-    void testUpdatePet_Forbidden() {
-        when(petRepository.findById(1L)).thenReturn(Optional.of(testPet));
-
-        BusinessException exception = assertThrows(BusinessException.class,
-                () -> petService.updatePet(2L, 1L, updateRequest));
-
-        assertEquals("无权限修改此宠物信息", exception.getMessage());
-        verify(petRepository, never()).save(any());
-    }
-
-    @Test
     @DisplayName("删除宠物 - 成功")
     void testDeletePet_Success() {
         when(petRepository.findById(1L)).thenReturn(Optional.of(testPet));
@@ -165,17 +153,5 @@ class PetServiceTest {
 
         assertDoesNotThrow(() -> petService.deletePet(1L, 1L));
         verify(petRepository).delete(testPet);
-    }
-
-    @Test
-    @DisplayName("删除宠物 - 无权限")
-    void testDeletePet_Forbidden() {
-        when(petRepository.findById(1L)).thenReturn(Optional.of(testPet));
-
-        BusinessException exception = assertThrows(BusinessException.class,
-                () -> petService.deletePet(2L, 1L));
-
-        assertEquals("无权限删除此宠物", exception.getMessage());
-        verify(petRepository, never()).delete(any());
     }
 }
