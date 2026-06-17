@@ -1,5 +1,7 @@
 package com.petfoster.service;
 
+import com.petfoster.annotation.RequireOwner;
+import com.petfoster.annotation.ResourceType;
 import com.petfoster.common.BusinessException;
 import com.petfoster.common.PageResponse;
 import com.petfoster.dto.PetDTO;
@@ -143,18 +145,16 @@ public class PetService {
     }
 
     @Transactional
+    @RequireOwner(resource = ResourceType.PET, idParam = "#petId", message = "无权限修改此宠物信息")
     public PetDTO.PetResponse updatePet(Long userId, Long petId, PetDTO.UpdatePetRequest request) {
         return updatePet(userId, petId, request, null);
     }
 
     @Transactional
+    @RequireOwner(resource = ResourceType.PET, idParam = "#petId", message = "无权限修改此宠物信息")
     public PetDTO.PetResponse updatePet(Long userId, Long petId, PetDTO.UpdatePetRequest request, org.springframework.web.multipart.MultipartFile photo) {
         Pet pet = petRepository.findById(petId)
                 .orElseThrow(() -> BusinessException.notFound("宠物不存在"));
-
-        if (!pet.getOwnerId().equals(userId)) {
-            throw BusinessException.forbidden("无权限修改此宠物信息");
-        }
 
         String oldPhotoUrl = pet.getPhotoUrl();
         String newUploadedPhotoUrl = null;
@@ -214,13 +214,10 @@ public class PetService {
     }
 
     @Transactional
+    @RequireOwner(resource = ResourceType.PET, idParam = "#petId", message = "无权限删除此宠物")
     public void deletePet(Long userId, Long petId) {
         Pet pet = petRepository.findById(petId)
                 .orElseThrow(() -> BusinessException.notFound("宠物不存在"));
-
-        if (!pet.getOwnerId().equals(userId)) {
-            throw BusinessException.forbidden("无权限删除此宠物");
-        }
 
         String photoUrl = pet.getPhotoUrl();
 
