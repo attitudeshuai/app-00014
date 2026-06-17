@@ -2,6 +2,9 @@ package com.petfoster.service;
 
 import com.petfoster.common.BusinessException;
 import com.petfoster.common.PageResponse;
+import com.petfoster.common.aspect.CheckOwnership;
+import com.petfoster.common.aspect.OwnershipRole;
+import com.petfoster.common.aspect.ResourceType;
 import com.petfoster.dto.FosterRequestDTO;
 import com.petfoster.entity.FosterRequest;
 import com.petfoster.entity.Notification;
@@ -76,14 +79,15 @@ public class FosterRequestService {
         return buildPageResponse(requestPage);
     }
 
+    @CheckOwnership(
+            resourceType = ResourceType.PET_FOR_FOSTER_REQUEST,
+            idExpression = "#req.petId",
+            message = "只能为自己的宠物创建寄养申请"
+    )
     @Transactional
     public FosterRequestDTO.RequestResponse createRequest(Long userId, FosterRequestDTO.CreateRequest req) {
         Pet pet = petRepository.findById(req.getPetId())
                 .orElseThrow(() -> BusinessException.notFound("宠物不存在"));
-
-        if (!pet.getOwnerId().equals(userId)) {
-            throw BusinessException.forbidden("只能为自己的宠物创建寄养申请");
-        }
 
         if (req.getStartDate().isAfter(req.getEndDate())) {
             throw BusinessException.badRequest("开始日期不能晚于结束日期");
@@ -132,16 +136,17 @@ public class FosterRequestService {
         return buildSingleResponse(request);
     }
 
+    @CheckOwnership(
+            resourceType = ResourceType.FOSTER_REQUEST,
+            idExpression = "#requestId",
+            message = "无权限修改此寄养申请"
+    )
     @Transactional
     public FosterRequestDTO.RequestResponse updateRequest(
             Long userId, Long requestId, FosterRequestDTO.UpdateRequest req) {
 
         FosterRequest request = requestRepository.findById(requestId)
                 .orElseThrow(() -> BusinessException.notFound("寄养申请不存在"));
-
-        if (!request.getOwnerId().equals(userId)) {
-            throw BusinessException.forbidden("无权限修改此寄养申请");
-        }
 
         if (request.getStatus() == FosterRequest.Status.Completed
                 || request.getStatus() == FosterRequest.Status.Cancelled) {
@@ -173,18 +178,18 @@ public class FosterRequestService {
         return buildSingleResponse(request);
     }
 
+    @CheckOwnership(
+            resourceType = ResourceType.FOSTER_REQUEST,
+            idExpression = "#requestId",
+            role = OwnershipRole.EITHER,
+            message = "无权限修改此寄养申请状态"
+    )
     @Transactional
     public FosterRequestDTO.RequestResponse updateStatus(
             Long userId, Long requestId, FosterRequest.Status newStatus) {
 
         FosterRequest request = requestRepository.findById(requestId)
                 .orElseThrow(() -> BusinessException.notFound("寄养申请不存在"));
-
-        boolean isOwner = request.getOwnerId().equals(userId);
-        boolean isFosterer = request.getFostererId() != null && request.getFostererId().equals(userId);
-        if (!isOwner && !isFosterer) {
-            throw BusinessException.forbidden("无权限修改此寄养申请状态");
-        }
 
         validateStatusTransition(request.getStatus(), newStatus);
 
@@ -230,14 +235,15 @@ public class FosterRequestService {
         return buildSingleResponse(request);
     }
 
+    @CheckOwnership(
+            resourceType = ResourceType.FOSTER_REQUEST,
+            idExpression = "#requestId",
+            message = "无权限删除此寄养申请"
+    )
     @Transactional
     public void deleteRequest(Long userId, Long requestId) {
         FosterRequest request = requestRepository.findById(requestId)
                 .orElseThrow(() -> BusinessException.notFound("寄养申请不存在"));
-
-        if (!request.getOwnerId().equals(userId)) {
-            throw BusinessException.forbidden("无权限删除此寄养申请");
-        }
 
         if (request.getStatus() == FosterRequest.Status.InProgress) {
             throw BusinessException.badRequest("进行中的寄养申请不能删除，请先取消");
