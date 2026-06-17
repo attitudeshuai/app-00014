@@ -1,7 +1,11 @@
 package com.petfoster.service;
 
 import com.petfoster.common.BusinessException;
+import com.petfoster.common.CheckOwnership;
+import com.petfoster.common.OwnershipContext;
+import com.petfoster.common.OwnershipRole;
 import com.petfoster.common.PageResponse;
+import com.petfoster.common.ResourceType;
 import com.petfoster.dto.DailyLogDTO;
 import com.petfoster.entity.FosterDailyLog;
 import com.petfoster.entity.FosterRequest;
@@ -62,25 +66,20 @@ public class DailyLogService {
         return EntityMapper.toDailyLogResponse(log, fosterer);
     }
 
+    @CheckOwnership(resourceType = ResourceType.FOSTER_REQUEST, resourceIdExp = "#req.requestId", role = OwnershipRole.FOSTERER, message = "只有寄养人才能创建日报")
     @Transactional
     public DailyLogDTO.LogResponse createLog(Long userId, DailyLogDTO.CreateLogRequest req) {
         return createLog(userId, req, null);
     }
 
+    @CheckOwnership(resourceType = ResourceType.FOSTER_REQUEST, resourceIdExp = "#req.requestId", role = OwnershipRole.FOSTERER, message = "只有寄养人才能创建日报")
     @Transactional
     public DailyLogDTO.LogResponse createLog(Long userId, DailyLogDTO.CreateLogRequest req, org.springframework.web.multipart.MultipartFile[] photoFiles) {
-        FosterRequest request = requestRepository.findById(req.getRequestId())
-                .orElseThrow(() -> BusinessException.notFound("寄养申请不存在"));
+        FosterRequest request = getRequestByIdOrThrow(req.getRequestId());
 
         if (request.getStatus() != FosterRequest.Status.InProgress
                 && request.getStatus() != FosterRequest.Status.Approved) {
             throw BusinessException.badRequest("只有已批准或进行中的寄养申请才能创建日报");
-        }
-
-        boolean isFosterer = request.getFostererId() != null
-                && request.getFostererId().equals(userId);
-        if (!isFosterer) {
-            throw BusinessException.forbidden("只有寄养人才能创建日报");
         }
 
         if (req.getLogDate() == null) {
@@ -175,20 +174,17 @@ public class DailyLogService {
         log.warn(msg, args);
     }
 
+    @CheckOwnership(resourceType = ResourceType.DAILY_LOG, resourceIdExp = "#logId", role = OwnershipRole.FOSTERER, message = "无权限修改此日报")
     @Transactional
     public DailyLogDTO.LogResponse updateLog(Long userId, Long logId, DailyLogDTO.UpdateLogRequest req) {
         return updateLog(userId, logId, req, null, false);
     }
 
+    @CheckOwnership(resourceType = ResourceType.DAILY_LOG, resourceIdExp = "#logId", role = OwnershipRole.FOSTERER, message = "无权限修改此日报")
     @Transactional
     public DailyLogDTO.LogResponse updateLog(Long userId, Long logId, DailyLogDTO.UpdateLogRequest req,
             org.springframework.web.multipart.MultipartFile[] photoFiles, boolean replacePhotos) {
-        FosterDailyLog log = logRepository.findById(logId)
-                .orElseThrow(() -> BusinessException.notFound("寄养日报不存在"));
-
-        if (!log.getFostererId().equals(userId)) {
-            throw BusinessException.forbidden("无权限修改此日报");
-        }
+        FosterDailyLog log = getLogByIdOrThrow(logId);
 
         String oldPhotos = log.getPhotos();
         List<String> uploadedPhotoUrls = new ArrayList<>();
@@ -307,14 +303,10 @@ public class DailyLogService {
         }
     }
 
+    @CheckOwnership(resourceType = ResourceType.DAILY_LOG, resourceIdExp = "#logId", role = OwnershipRole.FOSTERER, message = "无权限删除此日报")
     @Transactional
     public void deleteLog(Long userId, Long logId) {
-        FosterDailyLog log = logRepository.findById(logId)
-                .orElseThrow(() -> BusinessException.notFound("寄养日报不存在"));
-
-        if (!log.getFostererId().equals(userId)) {
-            throw BusinessException.forbidden("无权限删除此日报");
-        }
+        FosterDailyLog log = getLogByIdOrThrow(logId);
 
         String photos = log.getPhotos();
 
@@ -365,5 +357,23 @@ public class DailyLogService {
             case "logDate", "log_date" -> Sort.by(direction, "logDate");
             default -> Sort.by(Sort.Direction.DESC, "logDate");
         };
+    }
+
+    private FosterRequest getRequestByIdOrThrow(Long requestId) {
+        FosterRequest cached = OwnershipContext.getResource(FosterRequest.class);
+        if (cached != null && cached.getId().equals(requestId)) {
+            return cached;
+        }
+        return requestRepository.findById(requestId)
+                .orElseThrow(() -> BusinessException.notFound("寄养申请不存在"));
+    }
+
+    private FosterDailyLog getLogByIdOrThrow(Long logId) {
+        FosterDailyLog cached = OwnershipContext.getResource(FosterDailyLog.class);
+        if (cached != null && cached.getId().equals(logId)) {
+            return cached;
+        }
+        return logRepository.findById(logId)
+                .orElseThrow(() -> BusinessException.notFound("寄养日报不存在"));
     }
 }
